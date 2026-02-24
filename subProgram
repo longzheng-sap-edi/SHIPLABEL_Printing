@@ -1,0 +1,1725 @@
+*&---------------------------------------------------------------------*
+*&  Include           /OPL11/REP_LBM_INCLUDE_008
+*&---------------------------------------------------------------------*
+
+INCLUDE <icon> ##INCL_OK.
+TABLES sscrfields.
+* declarations
+CONSTANTS: cv_variant VALUE 'CLEAROMAT' TYPE raldb_vari.
+DATA: go_report_service TYPE REF TO /opl11/lbm_report_service ##NEEDED.
+DATA: gv_init TYPE xfeld ##NEEDED.
+DATA: gv_init_main TYPE xfeld ##NEEDED.
+DATA: gv_init_selection TYPE xfeld ##NEEDED.
+DATA: gv_init_extended TYPE xfeld ##NEEDED.
+DATA: gv_init_request TYPE xfeld ##NEEDED.
+DATA: gv_init_content TYPE xfeld ##NEEDED.
+DATA: gv_init_info TYPE xfeld ##NEEDED.
+DATA: gv_e_printn_display TYPE xfeld VALUE 'X' ##NEEDED.
+DATA: gv_p_printn_display TYPE xfeld VALUE 'X' ##NEEDED.
+
+DATA gv_description TYPE string ##NEEDED.
+DATA gv_description_long TYPE string ##NEEDED.
+DATA gv_var_data TYPE string ##NEEDED.
+DATA gt_screen_elements TYPE TABLE OF screen ##NEEDED.
+DATA gs_screen_element TYPE screen ##NEEDED.
+DATA gs_header TYPE /opl11/lbm_app_header_s ##NEEDED.
+DATA gt_bapi_fields TYPE /opl11/lbm_bapi_selec_field_t ##NEEDED.
+DATA gs_bapi_field TYPE /opl11/lbm_bapi_selec_field_s ##NEEDED.
+DATA gt_fields TYPE /opl11/lbm_pa_doc_field_t ##NEEDED.
+DATA gs_field TYPE /opl11/lbm_pa_doc_field_s ##NEEDED.
+DATA gt_ranges TYPE /opl11/lbm_app_range_t ##NEEDED.
+DATA gs_ranges TYPE /opl11/lbm_app_range_s ##NEEDED.
+DATA gt_selected_items TYPE /opl11/lbm_selection_list_t ##NEEDED.
+DATA gs_selected_item TYPE /opl11/lbm_selection_list_s ##NEEDED.
+
+CONSTANTS: cv_main_screen TYPE sy-dynnr VALUE '1000'.
+CONSTANTS: cv_selection_screen TYPE sy-dynnr VALUE '5555'.
+CONSTANTS: cv_extended_screen TYPE sy-dynnr VALUE '5560'.
+CONSTANTS: cv_content_screen TYPE sy-dynnr VALUE '5565'.
+CONSTANTS: cv_request_screen TYPE sy-dynnr VALUE '5567'.
+CONSTANTS: cv_info_screen TYPE sy-dynnr VALUE '5570'.
+DATA: gv_master_screen TYPE sy-dynnr VALUE '1000' ##NEEDED.
+
+DATA: gv_screen TYPE screen ##NEEDED.
+DATA: h_repid                TYPE raldb_repo ##NEEDED,
+      h_variant              TYPE raldb_vari ##NEEDED,
+      lv_user_variant_prefix TYPE /opl11/lbm_user_variant_prefix ##NEEDED.
+DATA: i_minbld TYPE /opl11/lbm_release_info ##NEEDED. " NO-DISPLAY.
+
+
+*-----------------------------------------------------------------------------------------------------------------------------*
+INITIALIZATION.
+* user specific ->
+  lv_user_variant_prefix = /opl11/lbm_general_services=>get_user_variant_prefix( ).
+  IF lv_user_variant_prefix IS NOT INITIAL.
+    h_repid = sy-repid.
+    CONCATENATE lv_user_variant_prefix sy-uname INTO h_variant. "'U_'
+
+    CALL FUNCTION 'RS_SUPPORT_SELECTIONS'
+      EXPORTING
+        report               = h_repid
+        variant              = h_variant
+      EXCEPTIONS
+        variant_not_existent = 01
+        variant_obsolete     = 02.
+    IF sy-subrc <> 0.
+*      PERFORM clear_input_fields.
+    ENDIF.
+  ELSE.
+*    PERFORM clear_input_fields.
+  ENDIF.
+
+  PERFORM init.
+
+*-----------------------------------------------------------------------------------------------------------------------------*
+AT SELECTION-SCREEN OUTPUT.
+  PERFORM init.
+
+*-----------------------------------------------------------------------------------------------------------------------------*
+AT SELECTION-SCREEN.
+
+  DATA ls_return TYPE /opl11/lbm_return_s.
+
+  CLEAR ls_return.
+  PERFORM merge_adjustment_fields.
+  PERFORM merge_selection_fields.
+  PERFORM merge_selection_ranges.
+
+  IF sy-dynnr = gv_master_screen. "1000 for transaction - 5555 via cockpit
+
+    CASE sscrfields-ucomm.
+      WHEN'FC01'.
+        IF p_reqflg IS INITIAL AND e_reqflg IS INITIAL.
+          gs_header-simulate_flag = p_simula = e_simula = 'X'.
+        ELSE.
+          gs_header-simulate_flag = p_simula = e_simula = '1'.
+          gs_header-scheduling_date = e_reqdat.
+          gs_header-scheduling_time = e_reqtim.
+          gs_header-scheduling_info = e_reqinf.
+          gs_header-scheduling_event = e_reqeve.
+          gs_header-scheduling_expiry_date = e_reqexp.
+        ENDIF.
+        PERFORM prepare_label_print CHANGING ls_return.
+        IF ls_return-type CA 'AEX'.
+          CLEAR sscrfields-ucomm.
+        ELSE.
+          sscrfields-ucomm = 'ONLI'.
+          IF gv_master_screen = cv_selection_screen. "called via cockpit
+            PERFORM start_label_print.
+*            PERFORM clear_input_fields.
+          ENDIF.
+        ENDIF.
+      WHEN'FC02'.
+        IF p_reqflg IS INITIAL AND e_reqflg IS INITIAL.
+          gs_header-simulate_flag = p_simula = e_simula = 'Q'.
+        ELSE.
+          gs_header-simulate_flag = p_simula = e_simula = '2'.
+          gs_header-scheduling_date = e_reqdat.
+          gs_header-scheduling_time = e_reqtim.
+          gs_header-scheduling_info = e_reqinf.
+          gs_header-scheduling_event = e_reqeve.
+          gs_header-scheduling_expiry_date = e_reqexp.
+        ENDIF.
+        PERFORM prepare_label_print CHANGING ls_return.
+        IF ls_return-type CA 'AEX'.
+          CLEAR sscrfields-ucomm.
+        ELSE.
+          sscrfields-ucomm = 'ONLI'.
+          IF gv_master_screen = cv_selection_screen. "called via cockpit
+            PERFORM start_label_print.
+*            PERFORM clear_input_fields.
+          ENDIF.
+        ENDIF.
+      WHEN'FC_REQ'.
+        gs_header-simulate_flag = p_simula = e_simula = 'R'.
+        gs_header-scheduling_date = e_reqdat.
+        gs_header-scheduling_time = e_reqtim.
+        gs_header-scheduling_info = e_reqinf.
+        gs_header-scheduling_event = e_reqeve.
+        gs_header-scheduling_expiry_date = e_reqexp.
+        PERFORM prepare_label_print CHANGING ls_return.
+        IF ls_return-type CA 'AEX'.
+          CLEAR sscrfields-ucomm.
+        ELSE.
+          sscrfields-ucomm = 'ONLI'.
+          IF gv_master_screen = cv_selection_screen. "called via cockpit
+            PERFORM start_label_print.
+*            PERFORM clear_input_fields.
+          ENDIF.
+        ENDIF.
+      WHEN'FC_SMP'.
+        gs_header-simulate_flag = p_simula = e_simula = 'M'.
+        PERFORM prepare_label_print CHANGING ls_return.
+        IF ls_return-type CA 'AEX'.
+          CLEAR sscrfields-ucomm.
+        ELSE.
+          sscrfields-ucomm = 'ONLI'.
+          IF gv_master_screen = cv_selection_screen. "called via cockpit
+            PERFORM start_label_print.
+*            PERFORM clear_input_fields.
+          ENDIF.
+        ENDIF.
+      WHEN'FC03'.
+        PERFORM clear_input_fields.
+        CLEAR sscrfields-ucomm.
+      WHEN'ONLI' OR 'PRIN' OR 'SJOB'. "default SAP function codes
+        IF p_reqflg IS INITIAL AND e_reqflg IS INITIAL.
+          CLEAR: gs_header-simulate_flag, p_simula, e_simula.
+        ELSE.
+          gs_header-simulate_flag = p_simula = e_simula = 'R'.
+          gs_header-scheduling_date = e_reqdat.
+          gs_header-scheduling_time = e_reqtim.
+          gs_header-scheduling_info = e_reqinf.
+          gs_header-scheduling_event = e_reqeve.
+          gs_header-scheduling_expiry_date = e_reqexp.
+        ENDIF.
+        PERFORM prepare_label_print CHANGING ls_return.
+        IF ls_return-type CA 'AEX'.
+          CLEAR sscrfields-ucomm.
+        ELSE.
+          IF gv_master_screen = cv_selection_screen. "called via cockpit
+            PERFORM start_label_print.
+*            PERFORM clear_input_fields.
+          ENDIF.
+        ENDIF.
+**
+      WHEN OTHERS.
+* execute selection list
+        IF sscrfields-ucomm+0(3) = 'SL_'.
+          PERFORM selection_list_maintain.
+          CLEAR sscrfields-ucomm.
+        ELSE.
+          IF sy-slset = cv_variant.
+            CLEAR: sy-slset.
+          ENDIF.
+        ENDIF.
+    ENDCASE.
+
+  ENDIF.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR e_printn. "printer name extended
+  PERFORM form_f4_printn_prepare USING 'E_PRINTN' gv_e_printn_display.
+
+AT SELECTION-SCREEN ON BLOCK cnt_mod.
+*-----------------------------------------------------------------------------------------------------------------------------*
+START-OF-SELECTION. " run label class
+
+  PERFORM start_label_print.
+*  IF gv_form_variant IS NOT INITIAL AND go_report_service->gs_fvh-clear_input = abap_true
+*  OR gv_form_variant IS INITIAL AND go_report_service->gs_frm-clear_input = abap_true.
+*    SUBMIT (sy-repid) VIA SELECTION-SCREEN.
+*  ENDIF.
+
+END-OF-SELECTION.
+
+*-----------------------------------------------------------------------------------------------------------------------------*
+* FORM ROUTINES ***************************************************************************************************************
+*-----------------------------------------------------------------------------------------------------------------------------*
+FORM clear_input_fields.
+  SUBMIT (sy-repid) VIA SELECTION-SCREEN. "#EC CI_SUBMIT
+ENDFORM.
+FORM prepare_label_print CHANGING es_return TYPE /opl11/lbm_return_s.
+
+  CLEAR es_return.
+
+  es_return = go_report_service->set_adjustments( is_header = gs_header ).
+  IF es_return-type CA 'AEX'.
+    /opl11/lbm_general_services=>display_return_message( is_return = es_return iv_display_type = 'I' ).
+    RETURN. "EXIT.
+  ENDIF.
+  go_report_service->set_fields( it_fields = gt_fields ).
+  go_report_service->set_ranges( it_ranges = gt_ranges ).
+  go_report_service->set_selection_lists( it_selection_lists = gt_selected_items ).
+  PERFORM check_required_entries CHANGING es_return.
+  IF es_return-type CA 'AEX'.
+    /opl11/lbm_general_services=>display_return_message( is_return = es_return iv_display_type = 'I' ).
+    RETURN. "EXIT.
+  ENDIF.
+  PERFORM check_value_list_entries CHANGING es_return.
+  IF es_return-type CA 'AEX'.
+    /opl11/lbm_general_services=>display_return_message( is_return = es_return iv_display_type = 'I' ).
+    RETURN. "EXIT.
+  ENDIF.
+
+ENDFORM.
+*-----------------------------------------------------------------------------------------------------------------------------*
+
+FORM start_label_print.
+
+  DATA lt_return TYPE /opl11/lbm_return_t.
+  DATA ls_return TYPE /opl11/lbm_return_s.
+  DATA lv_err TYPE boolean.
+  DATA lv_warn TYPE boolean.
+  DATA lv_message_title TYPE lvc_title.
+  DATA lv_caller_type TYPE /opl11/lbm_caller_type.
+
+  CLEAR ls_return.
+  REFRESH lt_return.
+
+* set caller type
+  IF go_report_service->gv_program_generation_state <> 'GEN'. "not generated
+    IF gv_master_screen = cv_selection_screen. "cockpit
+      lv_caller_type = 'CU'.
+    ELSE.
+      lv_caller_type = 'TU'.
+    ENDIF.
+  ELSE.
+    IF gv_master_screen = cv_selection_screen. "cockpit
+      lv_caller_type = 'CG'.
+    ELSE.
+      lv_caller_type = 'TG'.
+    ENDIF.
+  ENDIF.
+
+* start printing
+  go_report_service->start_label_print( EXPORTING iv_caller_type = lv_caller_type IMPORTING et_return_list = lt_return es_return = ls_return ).
+
+* reset selection list
+  CLEAR gt_selected_items.
+  go_report_service->set_selection_lists( it_selection_lists = gt_selected_items ).
+  go_report_service->reset_selection_lists( ).
+
+  CLEAR: lv_err, lv_warn.
+  lv_message_title = sy-title.
+
+  LOOP AT lt_return INTO ls_return WHERE type CA 'EAWX'.
+    IF ls_return-type = 'W'. "Warnings
+      lv_warn = 'X'.
+    ELSE. "Errors
+      lv_err = 'X'.
+    ENDIF.
+  ENDLOOP.
+
+  ls_return = /opl11/lbm_general_services=>calculate_result_message( it_return = lt_return  ).
+
+
+  IF lv_err IS INITIAL. " display last success message
+    MESSAGE ID ls_return-id TYPE ls_return-type NUMBER ls_return-number
+       WITH ls_return-message_v1 ls_return-message_v2
+            ls_return-message_v3 ls_return-message_v4.
+    IF sy-tcode <> '/OPL11/LBM_COCKPIT' AND
+      ( gv_form_variant IS NOT INITIAL AND go_report_service->gs_fvh-clear_input = abap_true OR go_report_service->gs_fvh-clear_input = 'S'
+      OR gv_form_variant IS INITIAL AND go_report_service->gs_frm-clear_input = abap_true OR go_report_service->gs_frm-clear_input = 'S' ).
+      SUBMIT (sy-repid) VIA SELECTION-SCREEN. "#EC CI_SUBMIT
+    ENDIF.
+  ELSE.
+    DELETE lt_return WHERE type CN 'AEX'.
+    APPEND ls_return TO lt_return.
+    /opl11/lbm_general_services=>display_message_list(
+       it_return                = lt_return
+       iv_title                 = lv_message_title
+       iv_show_success_messages = space
+       iv_show_info_messages    = space
+       iv_show_warning_messages = space
+       iv_show_error_messages   = space
+       ).
+    IF sy-tcode <> '/OPL11/LBM_COCKPIT' AND
+    ( gv_form_variant IS NOT INITIAL AND go_report_service->gs_fvh-clear_input = abap_true OR go_report_service->gs_fvh-clear_input = 'E'
+    OR gv_form_variant IS INITIAL AND go_report_service->gs_frm-clear_input = abap_true OR go_report_service->gs_frm-clear_input = 'E' ).
+      SUBMIT (sy-repid) VIA SELECTION-SCREEN. "#EC CI_SUBMIT
+    ENDIF.
+  ENDIF.
+
+ENDFORM.
+*-----------------------------------------------------------------------------------------------------------------------------*
+
+FORM form_f4_printn_prepare USING iv_dynpro_field TYPE help_info-dynprofld iv_display TYPE xfeld.
+
+  DATA: lv_dynpprog   LIKE sy-repid,
+        lv_dynnr      LIKE sy-dynnr,
+        lt_dynpfields LIKE dynpread OCCURS 0 WITH HEADER LINE,
+        lt_rettab     TYPE ddshretval OCCURS 2 WITH HEADER LINE,
+        ls_rettab     TYPE ddshretval.
+  DATA: lt_dyfields LIKE dynpread OCCURS 0 WITH HEADER LINE.
+  DATA: lv_f4_value TYPE help_info-fldvalue.
+  DATA: lv_printer_selected TYPE xfeld.
+
+  CLEAR lt_dynpfields.
+  REFRESH lt_dynpfields.
+
+  lv_dynpprog = sy-repid.
+  lv_dynnr = sy-dynnr.
+  lv_f4_value = p_printn.
+
+  CLEAR lv_printer_selected.
+  CALL FUNCTION 'F4IF_FIELD_VALUE_REQUEST'
+    EXPORTING
+      tabname           = '/OPL11/LBM_APP_HEADER_S'
+      fieldname         = 'PRINTER_NAME'
+      dynpnr            = lv_dynnr
+      dynprofield       = iv_dynpro_field
+      display           = iv_display
+*     value             = lv_f4_value
+      callback_program  = lv_dynpprog
+      callback_form     = 'FORM_F4_PRINTN'
+    TABLES
+      return_tab        = lt_rettab
+    EXCEPTIONS
+      field_not_found   = 1
+      no_help_for_field = 2
+      inconsistent_help = 3
+      no_values_found   = 4
+      OTHERS            = 5.
+  IF sy-subrc = 0.
+
+    READ TABLE lt_rettab INTO ls_rettab WITH KEY fieldname = 'NAME'.
+    IF sy-subrc = 0.
+      p_printn = ls_rettab-fieldval.
+      e_printn = ls_rettab-fieldval.
+      lv_printer_selected = 'X'.
+    ENDIF.
+    READ TABLE lt_rettab INTO ls_rettab WITH KEY fieldname = 'LBM_DEST_REF'.
+    IF sy-subrc = 0.
+      p_printd = ls_rettab-fieldval.
+      e_printd = ls_rettab-fieldval.
+      lv_printer_selected = 'X'.
+    ENDIF.
+
+    IF lv_printer_selected IS NOT INITIAL.
+      REFRESH lt_dyfields.
+
+      IF sy-dynnr = cv_selection_screen.
+        lt_dyfields-fieldvalue = p_printd.
+        lt_dyfields-fieldname = 'P_PRINTD'.
+        APPEND lt_dyfields.
+        lt_dyfields-fieldvalue = p_printn.
+        lt_dyfields-fieldname = 'P_PRINTN'.
+        APPEND lt_dyfields.
+      ELSEIF sy-dynnr = cv_extended_screen.
+        lt_dyfields-fieldvalue = e_printd.
+        lt_dyfields-fieldname = 'E_PRINTD'.
+        APPEND lt_dyfields.
+        lt_dyfields-fieldvalue = e_printn.
+        lt_dyfields-fieldname = 'E_PRINTN'.
+        APPEND lt_dyfields.
+      ENDIF.
+
+      CALL FUNCTION 'DYNP_VALUES_UPDATE'
+        EXPORTING
+          dyname     = lv_dynpprog
+          dynumb     = sy-dynnr
+        TABLES
+          dynpfields = lt_dyfields.
+
+    ENDIF.
+
+  ENDIF.
+
+ENDFORM.
+
+*-----------------------------------------------------------------------------------------------------------------------------*
+FORM form_f4_printn TABLES record_tab STRUCTURE seahlpres
+            CHANGING shlp TYPE shlp_descr
+                      callcontrol LIKE ddshf4ctrl.
+
+  DATA: ls_f4_printn_selopt TYPE ddshselopt.
+
+* Get Printer Name and Printserver from current Dynpro
+  IF sy-dynnr = cv_selection_screen.
+    CALL FUNCTION '/OPL11/LBM_GET_DYNP_VALUE'
+      EXPORTING
+        i_field = 'P_PRINTN'
+        i_repid = sy-repid
+        i_dynnr = sy-dynnr
+      CHANGING
+        o_value = p_printn.
+    e_printn = p_printn.
+    CALL FUNCTION '/OPL11/LBM_GET_DYNP_VALUE'
+      EXPORTING
+        i_field = 'P_PRINTD'
+        i_repid = sy-repid
+        i_dynnr = sy-dynnr
+      CHANGING
+        o_value = p_printd.
+    e_printd = p_printd.
+  ELSEIF sy-dynnr = cv_extended_screen.
+    CALL FUNCTION '/OPL11/LBM_GET_DYNP_VALUE'
+      EXPORTING
+        i_field = 'E_PRINTM'
+        i_repid = sy-repid
+        i_dynnr = sy-dynnr
+      CHANGING
+        o_value = e_printn.
+    p_printn = e_printn.
+    CALL FUNCTION '/OPL11/LBM_GET_DYNP_VALUE'
+      EXPORTING
+        i_field = 'E_PRINTD'
+        i_repid = sy-repid
+        i_dynnr = sy-dynnr
+      CHANGING
+        o_value = e_printd.
+    p_printd = e_printd.
+  ENDIF.
+
+* create select options for printer search help
+  REFRESH shlp-selopt.
+
+* Destination
+  CLEAR ls_f4_printn_selopt.
+  ls_f4_printn_selopt-shlpfield = 'LBM_DEST'.
+  ls_f4_printn_selopt-sign  = 'I'.
+  ls_f4_printn_selopt-option  = 'EQ'.
+  ls_f4_printn_selopt-low = p_lbmdst.
+  APPEND ls_f4_printn_selopt TO shlp-selopt.
+
+  CLEAR ls_f4_printn_selopt.
+  IF p_printd IS NOT INITIAL.
+    ls_f4_printn_selopt-shlpfield = 'LBM_DEST_REF'.
+    ls_f4_printn_selopt-sign  = 'I'.
+    IF p_printd CA '*' OR p_printd CA '+'. "wildcards
+      ls_f4_printn_selopt-option  = 'CP'.
+    ELSE.
+      ls_f4_printn_selopt-option  = 'EQ'.
+    ENDIF.
+    ls_f4_printn_selopt-low = p_printd.
+    APPEND ls_f4_printn_selopt TO shlp-selopt.
+  ENDIF.
+
+  IF p_printn IS NOT INITIAL.
+    ls_f4_printn_selopt-shlpfield = 'NAME'.
+    ls_f4_printn_selopt-sign  = 'I'.
+    IF p_printn CA '*' OR p_printn CA '+'. "wildcards
+      ls_f4_printn_selopt-option  = 'CP'.
+    ELSE.
+      ls_f4_printn_selopt-option  = 'EQ'.
+    ENDIF.
+    ls_f4_printn_selopt-low = p_printn.
+    APPEND ls_f4_printn_selopt TO shlp-selopt.
+  ENDIF.
+
+ENDFORM.
+
+*-----------------------------------------------------------------------------------------------------------------------------*
+FORM form_f4_printer_tray.
+
+  IF sy-dynnr = cv_selection_screen.
+    IF p_printd IS INITIAL OR p_printd CA '*+' OR p_printn IS INITIAL OR p_printn CA '*+'.
+      MESSAGE i662(/opl11/lbm).
+    ENDIF.
+  ELSEIF sy-dynnr = cv_extended_screen.
+    IF e_printd IS INITIAL OR e_printd CA '*+' OR e_printn IS INITIAL OR e_printn CA '*+'.
+      MESSAGE i662(/opl11/lbm).
+    ENDIF.
+
+  ENDIF.
+
+ENDFORM.
+*-----------------------------------------------------------------------------------------------------------------------------*
+FORM form_f4_strategy_id CHANGING cs_return TYPE /opl11/lbm_return_s..
+  DATA: lv_content_class TYPE /opl11/cai_content_class.
+  DATA: lv_tabname TYPE tabname VALUE '/OPL11/CAI_ASD'.
+
+  IF e_camcls IS NOT INITIAL AND e_camstr IS NOT INITIAL.
+*    SELECT SINGLE tabname FROM dd02l INTO lv_tabname WHERE tabname = lv_tabname.
+*    IF sy-subrc = 0.
+    SELECT SINGLE content_class FROM (lv_tabname) INTO lv_content_class WHERE content_class = e_camcls AND strategy_id = e_camstr.
+*    ENDIF.
+    IF sy-subrc <> 0.
+      cs_return =  /opl11/lbm_general_services=>set_return_message(
+           iv_msgnum = 516 iv_msgtyp = 'E' iv_msgv1  = e_camcls iv_msgv2 = e_camstr ) ##NUMBER_OK.
+    ENDIF.
+  ENDIF.
+
+ENDFORM.
+
+*-----------------------------------------------------------------------------------------------------------------------------*
+FORM init.
+
+  DATA ls_screen TYPE screen.
+  DATA lv_memory_value TYPE /opl11/lbm_fieldvalue_128.
+  DATA lv_nothing TYPE string.
+  FIELD-SYMBOLS: <lv_comp> TYPE any.
+  DATA ls_dyntxt TYPE smp_dyntxt.
+  DATA lv_sellist_title_char(10) TYPE c.
+
+  IF gv_init IS INITIAL.
+
+    gv_master_screen = sy-dynnr. "1000 in call transaction - 5555 via cockpit.
+
+    CREATE OBJECT go_report_service
+      EXPORTING
+        iv_label_class         = gv_form
+        iv_label_class_variant = gv_form_variant
+        iv_repid               = sy-repid.
+    i_lbmdst = e_lbmdst = p_lbmdst = go_report_service->gv_label_class_destination.
+    i_lbmfrm = e_lbmfrm = p_lbmfrm = go_report_service->gv_label_class.
+    i_frmvar = e_frmvar = p_frmvar = go_report_service->gv_label_class_variant.
+    sy-title = go_report_service->gv_class_title.
+    e_maxlab = p_maxlab = go_report_service->gs_frm-max_no_of_labels.
+
+* information data
+    i_curbld = go_report_service->gv_current_release_info.
+    i_minbld = go_report_service->gv_minimum_release_info.
+    IF p_frmvar IS INITIAL.
+* last change for label class
+      i_aedatu = go_report_service->gs_frm-aedat.
+      i_aezeit = go_report_service->gs_frm-aezeit.
+      i_aename = go_report_service->gs_frm-aenam.
+    ELSE.
+* last change for label class variant
+      i_aedatu = go_report_service->gs_fvh-aedat.
+      i_aezeit = go_report_service->gs_fvh-aezeit.
+      i_aename = go_report_service->gs_fvh-aenam.
+* last change for label class is relevant
+      IF i_aedatu < go_report_service->gs_frm-aedat
+        OR ( i_aedatu = go_report_service->gs_frm-aedat AND i_aezeit < go_report_service->gs_frm-aezeit ).
+        i_aedatu = go_report_service->gs_frm-aedat.
+        i_aezeit = go_report_service->gs_frm-aezeit.
+        i_aename = go_report_service->gs_frm-aenam.
+      ENDIF.
+    ENDIF.
+
+    i_icodat = icon_system_okay.
+    IF i_aedatu > i_tagdat OR ( i_aedatu = i_tagdat AND i_aezeit > i_tagzei ).
+      i_icodat = icon_warning.
+    ENDIF.
+    i_icobld = icon_system_okay.
+    IF i_curbld <> i_tagbld.
+      IF i_minbld IS NOT INITIAL.
+        DATA: lv_minbld TYPE text70, lv_tagbld TYPE text70, lv_dummy TYPE text70, lv_msgv1 TYPE sychar50, lv_msgv2 TYPE sychar50.
+        SPLIT i_minbld AT space INTO lv_minbld lv_dummy.
+        SPLIT i_tagbld AT space INTO lv_tagbld lv_dummy.
+        IF /opl11/lbm_general_services=>check_version_ge( iv_act_version = lv_tagbld iv_min_version = lv_minbld ) IS INITIAL.
+          lv_msgv1 = sy-repid.
+          IF sy-tcode CP '/OPL11/LBM*'.
+            CLEAR: lv_msgv2.
+          ELSE.
+            lv_msgv2 = sy-tcode.
+          ENDIF.
+          CALL FUNCTION 'POPUP_DISPLAY_MESSAGE'
+            EXPORTING
+              msgid = '/OPL11/LBM'
+              msgty = 'W'
+              msgno = 310 ##NUMBER_OK
+              msgv1 = lv_msgv1
+              msgv2 = lv_msgv2.
+        ENDIF.
+        CLEAR: i_minbld.
+      ENDIF.
+      i_icobld = icon_warning.
+    ENDIF.
+
+    IF gv_form_variant IS NOT INITIAL AND go_report_service->gs_fvh-exe_btn_prv IS INITIAL
+    OR gv_form_variant IS INITIAL AND go_report_service->gs_frm-exe_btn_prv IS INITIAL.
+      gv_description_long = go_report_service->get_constant_long_text( 'BTN_PRV' ).
+      ls_dyntxt-quickinfo = gv_description_long.
+      gv_var_data = go_report_service->get_constant_var_data( 'BTN_PRV' ).
+      WRITE (gv_var_data) TO ls_dyntxt-icon_id.
+      sscrfields-functxt_01 = ls_dyntxt.
+    ENDIF.
+    IF gv_form_variant IS NOT INITIAL AND go_report_service->gs_fvh-exe_btn_qpr IS INITIAL
+    OR gv_form_variant IS INITIAL AND go_report_service->gs_frm-exe_btn_qpr IS INITIAL.
+      gv_description_long = go_report_service->get_constant_long_text( 'BTN_QPR' ).
+      ls_dyntxt-quickinfo = gv_description_long.
+      gv_var_data = go_report_service->get_constant_var_data( 'BTN_QPR' ).
+      WRITE (gv_var_data) TO ls_dyntxt-icon_id.
+      sscrfields-functxt_02 = ls_dyntxt.
+    ENDIF.
+    IF gv_form_variant IS NOT INITIAL AND go_report_service->gs_fvh-clear_input IS NOT INITIAL
+    OR gv_form_variant IS INITIAL AND go_report_service->gs_frm-clear_input IS NOT INITIAL.
+      gv_description_long = go_report_service->get_constant_long_text( 'BTN_CLR' ).
+      ls_dyntxt-quickinfo = gv_description_long.
+      gv_var_data = go_report_service->get_constant_var_data( 'BTN_CLR' ).
+      WRITE (gv_var_data) TO ls_dyntxt-icon_id.
+      sscrfields-functxt_03 = ls_dyntxt.
+    ENDIF.
+
+    gv_init                = 'X'.
+
+  ENDIF.
+
+  CASE sy-dynnr.
+    WHEN cv_main_screen. "1000 ------------------------------------------------------------------------------
+
+      PERFORM init_main.
+
+
+      IF go_report_service->gv_edit_allowed IS INITIAL.
+        LOOP AT SCREEN.
+          IF screen-name = 'TAB_EXT' "OR screen-name = 'TAB_INF'
+            OR screen-name = 'TAB_CAM' OR screen-name = 'TAB_REQ'.
+            screen-invisible = '1'.
+            MODIFY SCREEN.
+          ENDIF.
+        ENDLOOP.
+      ELSE.
+        IF go_report_service->gv_extended_mode_allowed IS INITIAL.
+          LOOP AT SCREEN.
+            IF screen-name = 'TAB_EXT' OR screen-name = 'TAB_INF' OR screen-name = 'TAB_CAM'.
+              screen-invisible = '1'.
+              MODIFY SCREEN.
+            ENDIF.
+          ENDLOOP.
+        ELSEIF go_report_service->gv_content_mode_active IS INITIAL.
+          LOOP AT SCREEN.
+            IF screen-name = 'TAB_CAM'.
+              screen-invisible = '1'.
+              MODIFY SCREEN.
+            ENDIF.
+          ENDLOOP.
+        ENDIF.
+
+        IF go_report_service->gv_create_request_allowed IS INITIAL.
+          LOOP AT SCREEN.
+            IF screen-name = 'TAB_REQ'.
+              screen-invisible = '1'.
+              MODIFY SCREEN.
+            ENDIF.
+          ENDLOOP.
+        ENDIF.
+      ENDIF.
+
+
+    WHEN cv_selection_screen. "5555 ------------------------------------------------------------------------------
+
+      PERFORM init_main. " for print cockpit
+      PERFORM init_selection.
+
+      LOOP AT SCREEN.
+* set field attributes
+        IF screen-group3 = 'PAR' OR screen-group3 = 'LOW' OR screen-group3 = 'HGH' OR screen-group3 = 'TOT' OR screen-group3 = 'TXT'.
+          go_report_service->get_field_attributes_mem_value(
+            EXPORTING
+              is_screen       = screen
+            IMPORTING
+              es_screen       = ls_screen
+              ev_memory_value = lv_memory_value ).
+          screen-input = ls_screen-input.
+          IF lv_memory_value IS NOT INITIAL AND ls_screen-input = 0.
+            ASSIGN (screen-name) TO <lv_comp>.
+            <lv_comp> = lv_memory_value.
+          ENDIF.
+          screen-intensified = ls_screen-intensified.
+          IF screen-name = 'P_PRINTN'.
+            IF screen-input = 1.
+              CLEAR gv_p_printn_display.
+            ELSE.
+              gv_p_printn_display = 'X'.
+            ENDIF.
+          ENDIF.
+          MODIFY SCREEN.
+        ENDIF.
+* update icon/dscription for selection lists
+        IF screen-group3 = 'PBU'.
+          IF screen-name+0(3) = 'SL_'. "selection list
+            READ TABLE go_report_service->gt_sld INTO go_report_service->gs_sld WITH KEY button_name = screen-name.
+            IF sy-subrc = 0.
+              ASSIGN (go_report_service->gs_sld-button_name) TO <lv_comp>.
+              IF go_report_service->gs_sld-selection_counter IS INITIAL.
+                go_report_service->gs_sld-button_description = go_report_service->gs_sld-description.
+                go_report_service->gs_sld-button_icon = go_report_service->gs_sld-icon_empty.
+              ELSE.
+                WRITE go_report_service->gs_sld-selection_counter TO lv_sellist_title_char.
+                SHIFT lv_sellist_title_char LEFT DELETING LEADING '0'.
+                CONDENSE lv_sellist_title_char.
+                CONCATENATE '(' lv_sellist_title_char ')' INTO go_report_service->gs_sld-button_description.
+                CONCATENATE go_report_service->gs_sld-description go_report_service->gs_sld-button_description INTO go_report_service->gs_sld-button_description SEPARATED BY space.
+                go_report_service->gs_sld-button_icon = go_report_service->gs_sld-icon_filled.
+              ENDIF.
+              <lv_comp> = go_report_service->gs_sld-button_description.
+              CALL FUNCTION 'ICON_CREATE'
+                EXPORTING
+                  name   = go_report_service->gs_sld-button_icon
+                  text   = go_report_service->gs_sld-button_description
+                  info   = go_report_service->gs_sld-button_description
+                IMPORTING
+                  result = <lv_comp>
+                EXCEPTIONS
+                  OTHERS = 0.
+            ENDIF.
+          ELSE.
+            CASE screen-name.
+              WHEN 'BTN_RUN'.
+                IF gv_form_variant IS NOT INITIAL AND go_report_service->gs_fvh-exe_btn_run IS INITIAL
+                OR gv_form_variant IS INITIAL AND go_report_service->gs_frm-exe_btn_run IS INITIAL.
+                ELSE.
+                  screen-invisible = 1.
+                  MODIFY SCREEN.
+                ENDIF.
+              WHEN 'BTN_PRV'.
+                IF gv_form_variant IS NOT INITIAL AND go_report_service->gs_fvh-exe_btn_prv IS INITIAL
+                OR gv_form_variant IS INITIAL AND go_report_service->gs_frm-exe_btn_prv IS INITIAL.
+                ELSE.
+                  screen-invisible = 1.
+                  MODIFY SCREEN.
+                ENDIF.
+              WHEN 'BTN_QPR'.
+                IF gv_form_variant IS NOT INITIAL AND go_report_service->gs_fvh-exe_btn_qpr IS INITIAL
+                OR gv_form_variant IS INITIAL AND go_report_service->gs_frm-exe_btn_qpr IS INITIAL.
+                ELSE.
+                  screen-invisible = 1.
+                  MODIFY SCREEN.
+                ENDIF.
+            ENDCASE.
+          ENDIF.
+
+        ENDIF.
+
+      ENDLOOP.
+
+    WHEN cv_extended_screen. "5560 ------------------------------------------------------------------------------
+
+      PERFORM init_extended.
+
+      IF go_report_service->gv_extended_mode_allowed IS INITIAL.
+        gv_e_printn_display = 'X'.
+        LOOP AT SCREEN.
+          IF screen-input = 1.
+            screen-input = 0.
+            MODIFY SCREEN.
+          ENDIF.
+        ENDLOOP.
+      ELSE.
+        CLEAR gv_e_printn_display.
+      ENDIF.
+
+    WHEN cv_content_screen. "5565 ------------------------------------------------------------------------------
+
+      PERFORM init_content.
+
+      IF go_report_service->gv_extended_mode_allowed IS INITIAL. "=content_mose
+        gv_e_printn_display = 'X'.
+        LOOP AT SCREEN.
+          IF screen-input = 1.
+            screen-input = 0.
+            MODIFY SCREEN.
+          ENDIF.
+        ENDLOOP.
+      ELSE.
+        CLEAR gv_e_printn_display.
+
+        LOOP AT SCREEN.
+          IF screen-name CS 'E_CAMDAT' OR screen-name CS 'E_CAMTIM'.
+            IF e_cammod = 021 ##NUMBER_OK
+              OR e_cammod = 012 ##NUMBER_OK.
+              screen-active = 1.
+            ELSE.
+              screen-active = 0.
+              IF screen-name CS 'E_CAMDAT'.
+                CLEAR: e_camdat.
+              ELSEIF screen-name CS 'E_CAMTIM'.
+                CLEAR: e_camtim.
+              ENDIF.
+            ENDIF.
+            MODIFY SCREEN.
+          ELSEIF screen-name CS 'E_CAMVER'.
+            IF e_cammod = 022 ##NUMBER_OK.
+              screen-active = 1.
+            ELSE.
+              screen-active = 0.
+              IF screen-name CS 'E_CAMVER'.
+                CLEAR: e_camver.
+              ENDIF.
+            ENDIF.
+            MODIFY SCREEN.
+          ELSEIF screen-name CS 'E_CAMWOP' OR screen-name CS 'E_CAMREQ' OR screen-name CS 'E_CAMSTR'.
+            IF e_cammod = 012 ##NUMBER_OK.
+              screen-active = 1.
+            ELSE.
+              screen-active = 0.
+              IF screen-name CS 'E_CAMWOP'.
+                CLEAR: e_camwop.
+              ELSEIF screen-name CS 'E_CAMREQ'.
+                CLEAR: e_camreq.
+              ELSEIF screen-name CS 'E_CAMSTR'.
+                CLEAR: e_camstr.
+              ENDIF.
+            ENDIF.
+            MODIFY SCREEN.
+          ELSEIF screen-name CS 'E_CAMDSC'.
+            IF e_cammod = 012 ##NUMBER_OK
+              OR e_cammod = 013
+              OR e_cammod = 014 ##NUMBER_OK.
+              screen-active = 1.
+            ELSE.
+              screen-active = 0.
+              IF screen-name CS 'E_CAMDSC'.
+                CLEAR: e_camdsc.
+              ENDIF.
+            ENDIF.
+            MODIFY SCREEN.
+          ELSEIF screen-name CS 'E_CAMRSP'.
+            IF e_cammod = 012 ##NUMBER_OK
+              OR e_cammod = 013 ##NUMBER_OK.
+              screen-active = 1.
+            ELSE.
+              screen-active = 0.
+              IF screen-name CS 'E_CAMRSP'.
+                CLEAR: e_camrsp.
+              ENDIF.
+            ENDIF.
+            MODIFY SCREEN.
+          ENDIF.
+        ENDLOOP.
+      ENDIF.
+
+
+    WHEN cv_request_screen. "5567 ------------------------------------------------------------------------------
+
+      PERFORM init_request.
+
+      IF go_report_service->gv_create_request_allowed IS INITIAL.
+        LOOP AT SCREEN.
+          IF screen-input = 1.
+            screen-input = 0.
+            MODIFY SCREEN.
+          ENDIF.
+        ENDLOOP.
+      ENDIF.
+
+    WHEN cv_info_screen. "5570 ------------------------------------------------------------------------------
+
+      PERFORM init_info.
+
+      LOOP AT SCREEN.
+        IF screen-group3 = 'PAR'.
+          IF screen-input = 1.
+            screen-input = 0.
+            MODIFY SCREEN.
+          ENDIF.
+        ENDIF.
+      ENDLOOP.
+
+    WHEN OTHERS.
+* do nothing
+  ENDCASE.
+
+ENDFORM.
+
+*-----------------------------------------------------------------------------------------------------------------------------*
+FORM init_main.
+
+  DATA: lv_node_type TYPE string.
+
+  IF gv_init_main IS INITIAL.
+
+    LOOP AT SCREEN.
+      IF screen-group3 = 'TAB'.
+        lv_node_type = screen-name.
+        CASE screen-name.
+          WHEN 'TAB_SEL'.
+            tab_sel = /opl11/lbm_general_services=>get_node_icon( iv_icon_pool = 'TA_GEN_CON' iv_node_type = lv_node_type
+                                                                  iv_with_icon_text = 'X'     iv_icon_text = go_report_service->gv_class_title ).
+          WHEN 'TAB_EXT'.
+            tab_ext = /opl11/lbm_general_services=>get_node_icon( iv_icon_pool = 'TA_GEN_CON' iv_node_type = lv_node_type
+                                                                  iv_with_icon_text = 'X' ).
+          WHEN 'TAB_CAM'.
+            tab_cam = /opl11/lbm_general_services=>get_node_icon( iv_icon_pool = 'TA_GEN_CON' iv_node_type = lv_node_type
+                                                                  iv_with_icon_text = 'X' ).
+          WHEN 'TAB_REQ'.
+            tab_req = /opl11/lbm_general_services=>get_node_icon( iv_icon_pool = 'TA_GEN_CON' iv_node_type = lv_node_type
+                                                                  iv_with_icon_text = 'X' ).
+          WHEN 'TAB_INF'.
+            tab_inf = /opl11/lbm_general_services=>get_node_icon( iv_icon_pool = 'TA_GEN_CON' iv_node_type = lv_node_type
+                                                                  iv_with_icon_text = 'X' ).
+          WHEN OTHERS.
+        ENDCASE.
+      ENDIF.
+    ENDLOOP.
+
+    gv_init_main = 'X'.
+  ENDIF.
+
+ENDFORM.
+*-----------------------------------------------------------------------------------------------------------------------------*
+FORM init_selection.
+
+  FIELD-SYMBOLS: <lv_comp> TYPE any.
+  DATA lv_nothing TYPE string.
+  DATA ls_field_details	TYPE /opl11/lbm_fld_s.
+
+  IF gv_init_selection IS INITIAL.
+
+    LOOP AT SCREEN.
+
+      CASE screen-group3.
+* set field attributes
+        WHEN 'TXT'.
+          gv_description = go_report_service->get_field_description( is_screen = screen ).
+          IF gv_description IS NOT INITIAL.
+            ASSIGN (screen-name) TO <lv_comp>.
+            <lv_comp> = gv_description.
+          ENDIF.
+        WHEN 'COM'.
+          IF screen-name+0(2) <> 'V_'. "Version info
+            gv_description = go_report_service->get_constant_text( screen-name ).
+            ASSIGN (screen-name) TO <lv_comp>.
+            <lv_comp> = gv_description.
+          ENDIF.
+        WHEN 'BLK'.
+          IF screen-name+0(3) = 'BLK'.
+            gv_description = go_report_service->get_constant_text( screen-name ).
+            ASSIGN (screen-name) TO <lv_comp>.
+            <lv_comp> = gv_description.
+          ELSE.
+            gv_description = go_report_service->get_field_group_description( is_screen = screen ).
+            IF gv_description IS NOT INITIAL.
+              ASSIGN (screen-name) TO <lv_comp>.
+              <lv_comp> = gv_description.
+            ENDIF.
+          ENDIF.
+        WHEN 'PBU'.
+          IF screen-name+0(3) <>  'SL_'. "selection list need to be updated always
+            gv_description = go_report_service->get_constant_text( screen-name ).
+            gv_description_long = go_report_service->get_constant_long_text( screen-name ).
+            gv_var_data = go_report_service->get_constant_var_data( screen-name ).
+            CASE screen-name.
+              WHEN 'BTN_RUN'.
+                CALL FUNCTION 'ICON_CREATE'
+                  EXPORTING
+                    name       = gv_var_data
+                    text       = gv_description
+                    info       = gv_description_long
+                    add_stdinf = space
+                  IMPORTING
+                    result     = btn_run
+                  EXCEPTIONS
+                    OTHERS     = 0.
+              WHEN 'BTN_PRV'.
+                CALL FUNCTION 'ICON_CREATE'
+                  EXPORTING
+                    name       = gv_var_data
+                    text       = gv_description
+                    info       = gv_description_long
+                    add_stdinf = space
+                  IMPORTING
+                    result     = btn_prv
+                  EXCEPTIONS
+                    OTHERS     = 0.
+              WHEN 'BTN_QPR'.
+                CALL FUNCTION 'ICON_CREATE'
+                  EXPORTING
+                    name       = gv_var_data
+                    text       = gv_description
+                    info       = gv_description_long
+                    add_stdinf = space
+                  IMPORTING
+                    result     = btn_qpr
+                  EXCEPTIONS
+                    OTHERS     = 0.
+*              WHEN 'BTN_CLR'.
+*                CALL FUNCTION 'ICON_CREATE'
+*                  EXPORTING
+*                    name       = gv_var_data
+*                    text       = gv_description
+*                    info       = gv_description_long
+*                    add_stdinf = space
+*                  IMPORTING
+*                    result     = btn_clr
+*                  EXCEPTIONS
+*                    OTHERS     = 0.
+            ENDCASE.
+          ENDIF.
+      ENDCASE.
+
+      IF ( screen-group3 = 'PAR' OR screen-group3 = 'LOW' ) AND screen-name+0(3) = 'PS_'
+        OR screen-group3 = 'PBU' AND screen-name+0(3) = 'SL_'.
+        gs_screen_element = screen.
+        IF screen-group3 = 'LOW'.
+          SPLIT gs_screen_element-name AT '-' INTO gs_screen_element-name lv_nothing.
+        ENDIF.
+        ls_field_details = go_report_service->get_field_details_via_sequence( iv_field_seq = gs_screen_element-name+3(5) ).
+        IF ls_field_details-input_field = 'X'. "required
+          gs_screen_element-required = '1'.
+        ELSE.
+          gs_screen_element-required = '0'.
+        ENDIF.
+        APPEND gs_screen_element TO gt_screen_elements.
+      ENDIF.
+
+    ENDLOOP.
+
+    gv_init_selection = 'X'.
+  ENDIF.
+
+ENDFORM.
+
+*-----------------------------------------------------------------------------------------------------------------------------*
+FORM init_request.
+
+  FIELD-SYMBOLS: <lv_comp> TYPE any.
+
+  IF gv_init_request IS INITIAL.
+
+    LOOP AT SCREEN.
+
+      CASE screen-group3.
+        WHEN 'BLK'.
+          IF screen-name+0(3) = 'BLK'.
+            gv_description = go_report_service->get_constant_text( screen-name ).
+            ASSIGN (screen-name) TO <lv_comp>.
+            <lv_comp> = gv_description.
+          ENDIF.
+        WHEN 'PBU'.
+          gv_description = go_report_service->get_constant_text( screen-name ).
+          gv_description_long = go_report_service->get_constant_long_text( screen-name ).
+          gv_var_data = go_report_service->get_constant_var_data( screen-name ).
+          CASE screen-name.
+            WHEN 'BTN_REQ'.
+*              CALL FUNCTION 'ICON_CREATE'
+*                EXPORTING
+*                  name       = gv_var_data
+*                  text       = gv_description
+*                  info       = gv_description_long
+*                  add_stdinf = space
+*                IMPORTING
+*                  result     = btn_req
+*                EXCEPTIONS
+*                  OTHERS     = 0.
+            WHEN OTHERS.
+* do nothing
+          ENDCASE.
+
+        WHEN OTHERS.
+* set field description
+          gv_description = go_report_service->get_field_description( is_screen = screen ).
+          IF gv_description IS NOT INITIAL.
+            ASSIGN (screen-name) TO <lv_comp>.
+            <lv_comp> = gv_description.
+          ENDIF.
+          IF go_report_service->gv_extended_mode_allowed IS INITIAL.
+            screen-input = 0.
+            MODIFY SCREEN.
+          ENDIF.
+      ENDCASE.
+
+    ENDLOOP.
+
+    gv_init_request = 'X'.
+  ENDIF.
+
+ENDFORM.
+*-----------------------------------------------------------------------------------------------------------------------------*
+FORM init_extended.
+
+  FIELD-SYMBOLS: <lv_comp> TYPE any.
+
+  IF gv_init_extended IS INITIAL.
+
+    LOOP AT SCREEN.
+
+      CASE screen-group3.
+        WHEN 'BLK'.
+          IF screen-name+0(3) = 'BLK'.
+            gv_description = go_report_service->get_constant_text( screen-name ).
+            ASSIGN (screen-name) TO <lv_comp>.
+            <lv_comp> = gv_description.
+          ENDIF.
+        WHEN 'PBU'.
+          gv_description = go_report_service->get_constant_text( screen-name ).
+          gv_description_long = go_report_service->get_constant_long_text( screen-name ).
+          gv_var_data = go_report_service->get_constant_var_data( screen-name ).
+          CASE screen-name.
+            WHEN 'BTN_SMP'.
+              CALL FUNCTION 'ICON_CREATE'
+                EXPORTING
+                  name       = gv_var_data
+                  text       = gv_description
+                  info       = gv_description_long
+                  add_stdinf = space
+                IMPORTING
+                  result     = btn_smp
+                EXCEPTIONS
+                  OTHERS     = 0.
+            WHEN OTHERS.
+* do nothing
+          ENDCASE.
+        WHEN OTHERS.
+* set field description
+          gv_description = go_report_service->get_field_description( is_screen = screen ).
+          IF gv_description IS NOT INITIAL.
+            ASSIGN (screen-name) TO <lv_comp>.
+            <lv_comp> = gv_description.
+          ENDIF.
+          IF go_report_service->gv_extended_mode_allowed IS INITIAL.
+            screen-input = 0.
+            MODIFY SCREEN.
+          ENDIF.
+      ENDCASE.
+
+    ENDLOOP.
+
+    gv_init_extended = 'X'.
+  ENDIF.
+
+ENDFORM.
+*-----------------------------------------------------------------------------------------------------------------------------*
+FORM init_content.
+
+  FIELD-SYMBOLS: <lv_comp> TYPE any.
+  DATA: name TYPE vrm_id,
+        list TYPE vrm_values.
+
+*  IF e_cammod = 012.
+*  ENDIF.
+
+  IF gv_init_content IS INITIAL.
+
+    e_camcls = go_report_service->gs_frm-content_class.
+    IF e_cammod IS INITIAL.
+      e_cammod = go_report_service->gs_fvh-content_default_mode.
+    ENDIF.
+    IF e_cammod IS INITIAL.
+      e_cammod = go_report_service->gs_frm-content_default_mode.
+    ENDIF.
+    name = e_camcls.
+    list = /opl11/lbm_general_services=>get_listbox( iv_db_name = 'STRATEGY_ID' iv_db_text = name ).
+    CALL FUNCTION 'VRM_SET_VALUES'
+      EXPORTING
+        id              = 'E_CAMSTR'
+        values          = list
+      EXCEPTIONS
+        id_illegal_name = 1
+        OTHERS          = 2.
+    IF sy-subrc <> 0.
+* Implement suitable error handling here
+    ENDIF.
+
+    LOOP AT SCREEN.
+
+      CASE screen-group3.
+        WHEN 'BLK'.
+          IF screen-name+0(3) = 'CNT'.
+            gv_description = go_report_service->get_constant_text( screen-name ).
+            ASSIGN (screen-name) TO <lv_comp>.
+            <lv_comp> = gv_description.
+          ENDIF.
+        WHEN OTHERS.
+* set field description
+          gv_description = go_report_service->get_field_description( is_screen = screen ).
+          IF gv_description IS NOT INITIAL.
+            ASSIGN (screen-name) TO <lv_comp>.
+            <lv_comp> = gv_description.
+          ENDIF.
+          IF go_report_service->gv_extended_mode_allowed IS INITIAL
+            OR screen-name = 'E_CAMCLS'.
+            screen-input = 0.
+            MODIFY SCREEN.
+          ENDIF.
+      ENDCASE.
+
+    ENDLOOP.
+
+    gv_init_content = 'X'.
+  ELSE.
+    LOOP AT SCREEN.
+      IF go_report_service->gv_extended_mode_allowed IS INITIAL
+        OR screen-name = 'E_CAMCLS'.
+        screen-input = 0.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+ENDFORM.
+
+FORM init_info.
+
+  FIELD-SYMBOLS: <lv_comp> TYPE any.
+
+  IF gv_init_info IS INITIAL.
+
+    LOOP AT SCREEN.
+
+      CASE screen-group3.
+        WHEN 'BLK'.
+          IF screen-name+0(3) = 'BLK'.
+            gv_description = go_report_service->get_constant_text( screen-name ).
+            ASSIGN (screen-name) TO <lv_comp>.
+            <lv_comp> = gv_description.
+          ENDIF.
+        WHEN 'TXT'.
+          gv_description = go_report_service->get_constant_text( screen-name+2(8) ).
+          IF gv_description IS NOT INITIAL.
+            ASSIGN (screen-name) TO <lv_comp>.
+            <lv_comp> = gv_description.
+          ENDIF.
+      ENDCASE.
+
+    ENDLOOP.
+
+    gv_init_info = 'X'.
+
+  ENDIF.
+
+ENDFORM.
+
+*-----------------------------------------------------------------------------------------------------------------------------*
+FORM merge_selection_fields.
+
+  FIELD-SYMBOLS: <lv_comp> TYPE any.
+  DATA lv_field_seq TYPE /opl11/lbm_field_seq.
+  DATA lv_field TYPE /opl11/lbm_field.
+
+
+  REFRESH: gt_fields, gt_bapi_fields.
+  LOOP AT gt_screen_elements INTO gs_screen_element WHERE group3 = 'PAR' AND name+0(3) = 'PS_'.
+
+    lv_field_seq = gs_screen_element-name+3(5).
+    lv_field = go_report_service->get_field_name_via_sequence( iv_field_seq = lv_field_seq ).
+    ASSIGN (gs_screen_element-name) TO <lv_comp>.
+    IF sy-subrc = 0 AND lv_field IS NOT INITIAL.
+      CLEAR gs_field.
+      gs_field-name = lv_field.
+      gs_field-value = <lv_comp>.
+      APPEND gs_field TO gt_fields.
+      MOVE-CORRESPONDING gs_field TO gs_bapi_field.
+      APPEND gs_bapi_field TO gt_bapi_fields.
+    ENDIF.
+
+  ENDLOOP.
+
+* System fields for Selection lists "GO20201229
+  CLEAR gs_bapi_field.
+  gs_bapi_field-name = 'SYSLBM_FORM'          . gs_bapi_field-value = p_lbmfrm. APPEND gs_bapi_field TO gt_bapi_fields.
+  gs_bapi_field-name = 'SYSLBM_FORM_VARIANT'  . gs_bapi_field-value = p_frmvar. APPEND gs_bapi_field TO gt_bapi_fields.
+  gs_bapi_field-name = 'SYSLBM_DESTINATION'   . gs_bapi_field-value = p_lbmdst. APPEND gs_bapi_field TO gt_bapi_fields.
+  gs_bapi_field-name = 'SYSLBM_MAX_LABELS'    . gs_bapi_field-value = p_maxlab. APPEND gs_bapi_field TO gt_bapi_fields.
+  gs_bapi_field-name = 'SYSLBM_PRINTER_NAME'  . gs_bapi_field-value = p_printn. APPEND gs_bapi_field TO gt_bapi_fields.
+  gs_bapi_field-name = 'SYSLBM_LAYOUT_GROUP'  . gs_bapi_field-value = p_laygrp. APPEND gs_bapi_field TO gt_bapi_fields.
+  gs_bapi_field-name = 'SYSLBM_LAYOUT'        . gs_bapi_field-value = p_layout. APPEND gs_bapi_field TO gt_bapi_fields.
+  gs_bapi_field-name = 'SYSLBM_REVISION_MODE' . gs_bapi_field-value = p_revmod. APPEND gs_bapi_field TO gt_bapi_fields.
+  gs_bapi_field-name = 'SYSLBM_REVISION_ID'   . gs_bapi_field-value = p_rev_id. APPEND gs_bapi_field TO gt_bapi_fields.
+  gs_bapi_field-name = 'SYSLBM_LABEL_LANGU'   . gs_bapi_field-value = p_langua. APPEND gs_bapi_field TO gt_bapi_fields.
+  gs_bapi_field-name = 'SYSLBM_PRINTER_DEST'  . gs_bapi_field-value = p_printd. APPEND gs_bapi_field TO gt_bapi_fields.
+  gs_bapi_field-name = 'SYSLBM_PRINTER_TRAY'  . gs_bapi_field-value = p_prtray. APPEND gs_bapi_field TO gt_bapi_fields.
+  gs_bapi_field-name = 'SYSLBM_PREFIX_TYPE'   . gs_bapi_field-value = p_prefix. APPEND gs_bapi_field TO gt_bapi_fields.
+  gs_bapi_field-name = 'SYSLBM_IDENT_COPIES'  . gs_bapi_field-value = p_copies. APPEND gs_bapi_field TO gt_bapi_fields.
+  gs_bapi_field-name = 'SYSLBM_SERIAL_COPIES' . gs_bapi_field-value = p_serial. APPEND gs_bapi_field TO gt_bapi_fields.
+  gs_bapi_field-name = 'SYSLBM_REFERENCE_ID'  . gs_bapi_field-value = p_ref_id. APPEND gs_bapi_field TO gt_bapi_fields.
+
+ENDFORM.
+*-----------------------------------------------------------------------------------------------------------------------------*
+FORM merge_selection_ranges.
+
+  FIELD-SYMBOLS: <lt_ranges> TYPE ANY TABLE.
+  FIELD-SYMBOLS: <ls_range> TYPE any.
+  DATA lv_field_seq TYPE /opl11/lbm_field_seq.
+  DATA lv_field TYPE /opl11/lbm_field.
+
+  REFRESH gt_ranges.
+
+  LOOP AT gt_screen_elements INTO gs_screen_element WHERE group3 = 'LOW' AND name+0(3) = 'PS_'.
+
+    lv_field_seq = gs_screen_element-name+3(5).
+    lv_field = go_report_service->get_field_name_via_sequence( iv_field_seq = lv_field_seq ).
+    CONCATENATE gs_screen_element-name '[]' INTO gs_screen_element-name. "table
+    ASSIGN (gs_screen_element-name) TO <lt_ranges>.
+    IF sy-subrc = 0 AND lv_field IS NOT INITIAL.
+      LOOP AT <lt_ranges> ASSIGNING <ls_range>.
+        CLEAR gs_ranges.
+        MOVE-CORRESPONDING <ls_range> TO gs_ranges.
+        gs_ranges-field = lv_field.
+        APPEND gs_ranges TO gt_ranges.
+      ENDLOOP.
+    ENDIF.
+
+  ENDLOOP.
+
+ENDFORM.
+*-----------------------------------------------------------------------------------------------------------------------------*
+FORM merge_adjustment_fields.
+
+  DATA ls_return TYPE /opl11/lbm_return_s.
+  DATA: lv_activity         TYPE /opl11/cai_auth_activity,
+        lv_authorized       TYPE xfeld,
+        lv_authority_object TYPE xuobject.
+
+
+  CASE sy-dynnr.
+    WHEN cv_selection_screen. "transfer p_fields to e_fields
+
+      e_printd = p_printd.
+      e_printn = p_printn.
+      e_prtray = p_prtray.
+      e_laygrp = p_laygrp.
+      e_layout = p_layout.
+      e_revmod = p_revmod.
+      e_rev_id = p_rev_id.
+      e_copies = p_copies.
+      e_serial = p_serial.
+      e_langua = p_langua.
+      e_prefix = p_prefix.
+      e_ref_id = p_ref_id.
+      e_crjobg = p_crjobg.
+      e_maxlab = p_maxlab.
+      e_reqflg =  p_reqflg.
+      e_reqdat =  p_reqdat.
+      e_reqtim =  p_reqtim.
+      e_reqeve =  p_reqeve.
+      e_reqinf =  p_reqinf.
+      e_reqexp =  p_reqexp.
+
+    WHEN cv_extended_screen. "transfer e_fields to p_fields
+
+      p_printd = e_printd.
+      p_printn = e_printn.
+      p_prtray = e_prtray.
+      p_laygrp = e_laygrp.
+      p_layout = e_layout.
+      p_revmod = e_revmod.
+      p_rev_id = e_rev_id.
+      p_copies = e_copies.
+      p_serial = e_serial.
+      p_langua = e_langua.
+      p_prefix = e_prefix.
+      p_ref_id = e_ref_id.
+      p_crjobg = e_crjobg.
+      p_maxlab = e_maxlab.
+
+    WHEN cv_request_screen. "transfer e_fields to p_fields
+      p_reqflg =  e_reqflg.
+      p_reqdat =  e_reqdat.
+      p_reqtim =  e_reqtim.
+      p_reqeve =  e_reqeve.
+      p_reqinf =  e_reqinf.
+      p_reqexp =  e_reqexp.
+
+    WHEN OTHERS.
+
+  ENDCASE.
+
+* clear depending fields
+  IF p_printn IS INITIAL.
+    CLEAR: p_printd, e_printd, p_prtray, e_prtray.
+  ENDIF.
+  IF p_layout IS INITIAL.
+    CLEAR: p_laygrp, e_laygrp.
+  ENDIF.
+
+* get printer destination if empty
+  IF p_printn IS NOT INITIAL AND p_printd IS INITIAL.
+    go_report_service->get_print_server(
+      EXPORTING
+        iv_lbm_dest     = p_lbmdst
+        iv_printer_name = p_printn
+      IMPORTING
+        ev_printer_dest = p_printd
+        es_return       = ls_return ).
+    IF p_printd IS NOT INITIAL.
+      e_printd = p_printd.
+      IF ls_return IS NOT INITIAL.
+        /opl11/lbm_general_services=>display_return_message( is_return = ls_return ).
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+  IF e_cammod IS NOT INITIAL AND e_cammod NE go_report_service->co_cam_mode_live_data(3).
+    CASE e_cammod.
+      WHEN go_report_service->co_cam_mode_live_draft(3). lv_activity = go_report_service->co_cam_mode_live_draft+3.
+      WHEN go_report_service->co_cam_mode_live_alert(3). lv_activity = go_report_service->co_cam_mode_live_alert+3.
+      WHEN go_report_service->co_cam_mode_live_save(3).  lv_activity = go_report_service->co_cam_mode_live_save+3.
+      WHEN go_report_service->co_cam_mode_get_latest(3). lv_activity = go_report_service->co_cam_mode_get_latest+3.
+      WHEN go_report_service->co_cam_mode_get_latpub(3). lv_activity = go_report_service->co_cam_mode_get_latpub+3.
+      WHEN go_report_service->co_cam_mode_get_vers(3).   lv_activity = go_report_service->co_cam_mode_get_vers+3.
+      WHEN go_report_service->co_cam_mode_get_date(3).   lv_activity = go_report_service->co_cam_mode_get_date+3.
+    ENDCASE.
+
+    DATA: lv_rfc_destination TYPE rfcdest.
+    DATA: lv_rfc_msgno TYPE /opl11/lbm_msgnum.
+    DATA: ls_ini TYPE /opl11/lbm_ini.
+
+    ls_ini = /opl11/lbm_general_services=>get_system_settings( ).
+
+**  IF iv_rfc_destination IS NOT INITIAL.
+**    lv_rfc_destination = iv_rfc_destination.
+    IF ls_ini-cam_rfcdest IS NOT INITIAL.
+      lv_rfc_destination = ls_ini-cam_rfcdest.
+    ELSE.
+      lv_rfc_destination = 'NONE'.
+    ENDIF.
+    CALL FUNCTION '/OPL11/CAM_BAPI_CHECK_AUTH'
+      DESTINATION lv_rfc_destination
+      EXPORTING
+        activity              = lv_activity
+        content_class         = e_camcls
+*       UNAME                 = SY-UNAME
+      IMPORTING
+        is_authorized         = lv_authorized
+        authority_object      = lv_authority_object
+      EXCEPTIONS
+        system_failure        = 531 ##NUMBER_OK
+        communication_failure = 532 ##NUMBER_OK
+        resource_failure      = 533 ##NUMBER_OK
+        OTHERS                = 534 ##NUMBER_OK.
+    .
+    IF sy-subrc <> 0.
+      lv_rfc_msgno = sy-subrc.
+      /opl11/lbm_general_services=>display_message( iv_msgtyp = 'E' iv_msgnum = lv_rfc_msgno
+                          iv_msgv1 = lv_rfc_destination
+                          iv_msgv2 = '/OPL11/CAM_BAPI_CHECK_AUTH' ).
+    ENDIF.
+    IF lv_authorized IS INITIAL. " and lv_authority_object is not initial.
+      /opl11/lbm_general_services=>display_message(
+*        iv_msgid  = '/OPL11/LBM'
+          iv_msgnum = '519'
+          iv_msgtyp = 'E'
+          iv_msgv1  = lv_authority_object
+          iv_msgv2  = lv_activity
+          iv_msgv3  = e_camcls
+          iv_msgv4  = sy-uname
+             ).
+    ENDIF.
+  ENDIF.
+
+  CLEAR gs_header.
+  gs_header-form = p_lbmfrm.
+  gs_header-form_variant = p_frmvar.
+  gs_header-lbm_dest = p_lbmdst.
+  gs_header-printer_dest = p_printd.
+  gs_header-printer_name = p_printn.
+  gs_header-printer_tray = p_prtray.
+  gs_header-layout_group = p_laygrp.
+  gs_header-layout = p_layout.
+  gs_header-revision_mode = p_revmod.
+  gs_header-revision_id = p_rev_id.
+  gs_header-ident_copies = p_copies.
+  gs_header-serial_copies = p_serial.
+  gs_header-label_langu = p_langua.
+  gs_header-prefix_type = p_prefix.
+  gs_header-reference_id = p_ref_id.
+  gs_header-create_job_group = p_crjobg.
+  gs_header-max_no_of_labels = p_maxlab.
+  gs_header-content_class = e_camcls.
+  gs_header-content_mode = e_cammod.
+  gs_header-content_valid_date = e_camdat.
+  gs_header-content_valid_time = e_camtim.
+  gs_header-strategy_id = e_camstr.
+  IF e_camdat IS INITIAL.
+    gs_header-content_valid_date = sy-datum.
+  ENDIF.
+  gs_header-content_version = e_camver.
+  gs_header-content_wo_print = e_camwop.
+  gs_header-change_request = e_camreq.
+  gs_header-content_description = e_camdsc.
+  gs_header-content_responsible_user = e_camrsp.
+
+* transfer adjustments to input system fields 2bc0
+
+ENDFORM.
+
+*-----------------------------------------------------------------------------------------------------------------------------*
+FORM selection_list_maintain.
+
+  FIELD-SYMBOLS: <fs_sld> TYPE /opl11/lbm_sld_s.
+  DATA: lt_selected_items_send TYPE /opl11/lbm_selection_list_t.
+  DATA: lt_selected_items_return TYPE /opl11/lbm_selection_list_t.
+  DATA ls_sel_list_return TYPE /opl11/lbm_return_s.
+  FIELD-SYMBOLS: <lv_comp> TYPE any.
+
+  READ TABLE go_report_service->gt_sld ASSIGNING <fs_sld> WITH KEY button_name = sscrfields-ucomm.
+  IF sy-subrc = 0.
+    REFRESH lt_selected_items_send.
+    READ TABLE gt_selected_items INTO gs_selected_item
+      WITH KEY field = <fs_sld>-field data_type = /opl11/lbm_sld_services=>con_data_type_list_data.
+    IF sy-subrc = 0.
+      APPEND gs_selected_item TO lt_selected_items_send.
+    ENDIF.
+
+    CLEAR ls_sel_list_return.
+    CALL FUNCTION '/OPL11/LBM_BAPI_GET_SELEC_LIST'
+      EXPORTING
+        form                           = p_lbmfrm
+        form_variant                   = p_frmvar
+        field                          = <fs_sld>-field
+        field_list                     = gt_bapi_fields
+        range_list                     = gt_ranges
+        selected_items                 = lt_selected_items_send
+        caller_type                    = 'TA'
+        user                           = sy-uname
+        language                       = sy-langu
+        show_selection_list            = 'X'
+      IMPORTING
+        selected_entries               = lt_selected_items_return
+*       selection_text                 =
+        selection_count                = <fs_sld>-selection_counter
+        return                         = ls_sel_list_return
+      EXCEPTIONS
+        x_no_selection_list_definition = 1
+        x_selection_list_class_error   = 2
+        OTHERS                         = 3.
+    IF sy-subrc <> 0.
+
+      CASE sy-subrc.
+        WHEN 1.
+          ls_sel_list_return = /opl11/lbm_general_services=>set_return_message( iv_msgnum = 587 ##NUMBER_OK
+          iv_msgtyp = 'E' ).
+        WHEN 2.
+          ls_sel_list_return = /opl11/lbm_general_services=>set_return_message( iv_msgnum = 588 ##NUMBER_OK
+           iv_msgtyp = 'E' ).
+        WHEN OTHERS.
+          ls_sel_list_return = /opl11/lbm_general_services=>set_return_message( iv_msgnum = 589 ##NUMBER_OK
+           iv_msgtyp = 'E' ).
+      ENDCASE.
+      /opl11/lbm_general_services=>display_return_message(
+          is_return       = ls_sel_list_return
+          iv_display_type = 'I' ).
+
+    ELSE.
+
+      IF ls_sel_list_return-type CA 'EAX'.
+        /opl11/lbm_general_services=>display_return_message(
+            is_return       = ls_sel_list_return
+            iv_display_type = 'I' ).
+      ENDIF.
+      DELETE gt_selected_items
+        WHERE field = <fs_sld>-field AND data_type = /opl11/lbm_sld_services=>con_data_type_list_data.
+      READ TABLE lt_selected_items_return INTO gs_selected_item
+        WITH KEY field = <fs_sld>-field data_type = /opl11/lbm_sld_services=>con_data_type_list_data.
+      IF sy-subrc = 0.
+        APPEND gs_selected_item TO gt_selected_items.
+      ENDIF.
+
+    ENDIF.
+
+  ENDIF.
+
+
+ENDFORM.
+
+*---------------------------------------------------------------------*
+FORM check_required_entries  CHANGING cs_return TYPE /opl11/lbm_return_s.
+
+  DATA ls_field_details TYPE  /opl11/lbm_fld_s.
+  FIELD-SYMBOLS: <lv_comp> TYPE any.
+
+  CLEAR cs_return.
+
+*check mandatory fields
+  LOOP AT gt_screen_elements INTO gs_screen_element WHERE required = '1'. "required fields
+
+    ls_field_details = go_report_service->get_field_details_via_sequence( iv_field_seq = gs_screen_element-name+3(5) ).
+
+    IF gs_screen_element-name+0(3) = 'SL_'. "Selection list
+
+      READ TABLE gt_selected_items INTO gs_selected_item
+        WITH KEY field = ls_field_details-field data_type = /opl11/lbm_sld_services=>con_data_type_list_data.
+      IF sy-subrc <> 0 OR gs_selected_item-data_content IS INITIAL OR gs_selected_item-data_content = '[]'.
+        cs_return =  /opl11/lbm_general_services=>set_return_message(
+             iv_msgnum = 009 iv_msgtyp = 'E' iv_msgv1  = ls_field_details-description iv_msgv2 = ls_field_details-field ).
+      ENDIF.
+
+    ELSE. "select options and parameters
+
+      ASSIGN (gs_screen_element-name) TO <lv_comp>.
+      IF sy-subrc <> 0 OR <lv_comp> IS INITIAL. "field
+        cs_return =  /opl11/lbm_general_services=>set_return_message(
+             iv_msgnum = 009 iv_msgtyp = 'E' iv_msgv1  = ls_field_details-description iv_msgv2 = ls_field_details-field ).
+      ENDIF.
+
+    ENDIF.
+
+  ENDLOOP.
+
+  PERFORM form_f4_strategy_id CHANGING cs_return. "2bc F4 with autoversion
+
+ENDFORM.
+
+FORM variable_f4 USING iv_dynpro_field TYPE help_info-dynprofld
+                       iv_field TYPE  /opl11/lbm_field
+                 CHANGING ev_found TYPE xfeld
+                          ev_value TYPE ddshretval-fieldval.
+
+  DATA ls_ret TYPE ddshretval.
+  DATA lt_ret TYPE TABLE OF ddshretval.
+  DATA lt_f4_value_list TYPE /opl11/lbm_fvl_short_t.
+  DATA ls_f4_value  TYPE /opl11/lbm_fvl_short_s.
+
+  CLEAR: ev_found, ev_value.
+
+* get value list for field
+  lt_f4_value_list = /opl11/lbm_fld_services=>get_field_value_list(
+      iv_form         = gv_form
+      iv_form_variant = gv_form_variant
+      iv_field        = iv_field ).
+  IF lines( lt_f4_value_list ) IS INITIAL.
+    RETURN. "EXIT.
+  ENDIF.
+
+
+* F4 call
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      ddic_structure  = '/OPL11/LBM_FVL_SHORT_S'
+      retfield        = 'KEY_VALUE'
+*     PVALKEY         = ' '
+*     DYNPPROG        = ' '
+*     DYNPNR          = ' '
+      dynprofield     = iv_dynpro_field
+*     STEPL           = 0
+*     WINDOW_TITLE    =
+*     VALUE           = ' '
+      value_org       = 'S'
+*     MULTIPLE_CHOICE = ' '
+*     DISPLAY         = ' '
+*     CALLBACK_PROGRAM       = ' '
+*     CALLBACK_FORM   = ' '
+*     CALLBACK_METHOD =
+*     MARK_TAB        =
+*   IMPORTING
+*     USER_RESET      =
+    TABLES
+      value_tab       = lt_f4_value_list
+*     FIELD_TAB       =
+      return_tab      = lt_ret
+*     DYNPFLD_MAPPING =
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2
+      OTHERS          = 3.
+  IF sy-subrc = 0.
+    READ TABLE lt_ret INTO ls_ret INDEX 1.
+    IF sy-subrc IS INITIAL.
+      ev_found = abap_true.
+      ev_value = ls_ret-fieldval.
+    ENDIF.
+  ENDIF.
+
+ENDFORM.
+*---------------------------------------------------------------------*
+FORM check_value_list_entries  CHANGING cs_return TYPE /opl11/lbm_return_s.
+
+  DATA ls_field_details TYPE  /opl11/lbm_fld_s.
+  FIELD-SYMBOLS: <lv_comp> TYPE any.
+  FIELD-SYMBOLS: <lv_value> TYPE any.
+  FIELD-SYMBOLS: <lv_comp_table> TYPE any.
+  DATA lt_f4_val TYPE /opl11/lbm_fvl_short_t.
+  DATA ls_f4_val TYPE /opl11/lbm_fvl_short_s.
+  DATA lv_key_value	TYPE /opl11/lbm_value_list_key.
+  DATA lv_key_found TYPE xfeld.
+
+  CLEAR cs_return.
+
+*check mandatory fields
+  LOOP AT gt_screen_elements INTO gs_screen_element WHERE name+0(3) = 'PS_' AND group3 = 'PAR' AND input = '1' AND value_help = '1'. "LBM fix values
+
+    ls_field_details = go_report_service->get_field_details_via_sequence( iv_field_seq = gs_screen_element-name+3(5) ).
+    CHECK ls_field_details-search_help = /opl11/lbm_fld_services=>co_fix_value_search_help_name.
+
+    ASSIGN (gs_screen_element-name) TO <lv_comp>.
+    IF sy-subrc <> 0. "field
+      cs_return =  /opl11/lbm_general_services=>set_return_message(
+           iv_msgnum = 009 iv_msgtyp = 'E' iv_msgv1  = ls_field_details-description iv_msgv2 = ls_field_details-field ).
+      EXIT.
+    ENDIF.
+
+* set current value
+    lv_key_value = <lv_comp>.
+    IF ls_field_details-input_field <> 'X' AND lv_key_value IS INITIAL. "no obligatory field, but curren value empty
+      CONTINUE.
+    ENDIF.
+* check fix values
+    lv_key_found = /opl11/lbm_fld_services=>check_field_fix_value(
+         iv_form             = gv_form
+         iv_form_variant     = gv_form_variant
+         iv_field            = ls_field_details-field
+         iv_key_value        = lv_key_value ).
+    IF lv_key_found IS INITIAL.
+      cs_return =  /opl11/lbm_general_services=>set_return_message(
+           iv_msgnum = 266 ##NUMBER_OK
+           iv_msgtyp = 'E' iv_msgv1  = lv_key_value iv_msgv2 = ls_field_details-field ).
+    ENDIF.
+
+  ENDLOOP.
+
+ENDFORM.
