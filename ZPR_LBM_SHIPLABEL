@@ -1,0 +1,250 @@
+*&---------------------------------------------------------------------------------*
+*& Report  ZPR_LBM_SHIPLABEL
+*& Version 8.0.0 Build 20220305
+*&---------------------------------------------------------------------------------*
+*& Generated Program For Label Management Applications
+*& 标签管理应用程序自动生成程序
+*&  * DO NOT CHANGE / DO NOT PRETTY PRINTER
+*&    请勿更改 / 请勿美化代码
+*&  * BASE PROGRAM (COPIED DEFAULT):
+*&    基础程序（默认复制）:
+*&    / O P L 1 1 / R E P _ L B M _ C R E A T E _ A P P _ 0 0 8
+*&
+*&  Comments lines like <*#...> (e.g. *#XXX) will be changed by report generator
+*&  类似 <*#...> 的注释行（如 *#XXX）会被报表生成器修改
+*&  Constants like <##...##> (e.g. ##XXXX##) will be changed by report generator
+*&  类似 <##...##> 的常量（如 ##XXXX##）会被报表生成器修改
+*&---------------------------------------------------------------------------------*
+
+REPORT  ZPR_LBM_SHIPLABEL LINE-SIZE 255. "REPLACE NAME 替换名称
+
+DATA gv_form TYPE /opl11/lbm_form VALUE 'SHIPLABEL' ##NEEDED. "REPLACE NAME 替换名称
+DATA gv_form_variant TYPE /opl11/lbm_form_variant VALUE '' ##NEEDED. "REPLACE NAME 替换名称
+* variable value list
+* 变量值列表
+DATA gv_f4_value_found TYPE xfeld ##NEEDED.
+DATA gv_f4_value_key TYPE ddshretval-fieldval ##NEEDED.
+
+* ---> Generated TABLES declaration for FROM-TO selections
+* 自动生成的用于FROM-TO选择的TABLES声明
+*#001    Beginn of tables
+* 表开始
+* <--- Generated TABLES declaration for FROM-TO selections
+* 自动生成的用于FROM-TO选择的TABLES声明结束
+
+* Selection fields ---------------------------------------------------------------------
+* 选择字段 ---------------------------------------------------------------------
+SELECTION-SCREEN: FUNCTION KEY 1,
+                  FUNCTION KEY 2,
+                  FUNCTION KEY 3.
+
+SELECTION-SCREEN BEGIN OF SCREEN 5555 AS SUBSCREEN.
+
+* Hidden adjustment fields
+* 隐藏调整字段
+PARAMETERS: p_lbmfrm TYPE /opl11/lbm_app_header_s-form NO-DISPLAY.
+PARAMETERS: p_frmvar TYPE /opl11/lbm_app_header_s-form_variant NO-DISPLAY.
+PARAMETERS: p_lbmdst TYPE /opl11/lbm_app_header_s-lbm_dest NO-DISPLAY.
+PARAMETERS: p_maxlab TYPE /opl11/lbm_max_no_of_labels NO-DISPLAY.
+PARAMETERS: p_simula TYPE /opl11/lbm_sim NO-DISPLAY.
+
+* ---> Generated blocks for input fields
+* 自动生成的输入字段块
+*#002    Beginn of blocks / parameters / Select-Options / Selection lists
+* 块/参数/选择选项/选择列表开始
+SELECTION-SCREEN BEGIN OF BLOCK FG_010 WITH FRAME TITLE FGT010 .
+PARAMETERS: PS_00010 TYPE VBELN_VL.
+PARAMETERS: PS_00011 TYPE NACH-DSUF1.
+PARAMETERS: p_printn TYPE /opl11/lbm_app_header_s-printer_name  MEMORY ID /opl11/lbm_prn_name.
+SELECTION-SCREEN END OF BLOCK FG_010 .
+* <--- Generated blocks for input fields
+* 自动生成的输入字段块结束
+
+* ---> Generated system fields with NO-DISPLAY
+* 自动生成的系统字段（不可显示）
+*#SYST   Hidden system fields with NO-DISPLAY
+* 隐藏系统字段（不可显示）
+PARAMETERS: p_laygrp TYPE /opl11/lbm_app_header_s-layout_group NO-DISPLAY.
+PARAMETERS: p_layout TYPE /opl11/lbm_app_header_s-layout  NO-DISPLAY.
+PARAMETERS: p_revmod TYPE /opl11/lbm_revision_mode NO-DISPLAY.
+PARAMETERS: p_rev_id TYPE /opl11/lbm_lay-revision_id NO-DISPLAY.
+PARAMETERS: p_langua TYPE /opl11/lbm_app_header_s-label_langu NO-DISPLAY.
+PARAMETERS: p_printd TYPE /opl11/lbm_app_header_s-printer_dest  NO-DISPLAY.
+PARAMETERS: p_prtray TYPE /opl11/lbm_app_header_s-printer_tray NO-DISPLAY.
+PARAMETERS: p_prefix TYPE /opl11/lbm_app_header_s-prefix_type NO-DISPLAY.
+PARAMETERS: p_copies TYPE /opl11/lbm_ident_copies NO-DISPLAY.
+PARAMETERS: p_serial TYPE /opl11/lbm_serial_copies NO-DISPLAY.
+PARAMETERS: p_ref_id TYPE /opl11/lbm_app_header_s-reference_id NO-DISPLAY.
+PARAMETERS: p_crjobg TYPE /opl11/lbm_create_job_group NO-DISPLAY.
+PARAMETERS: p_reqdat TYPE /opl11/lbm_scheduling_date NO-DISPLAY.
+PARAMETERS: p_reqtim TYPE /opl11/lbm_scheduling_time NO-DISPLAY.
+PARAMETERS: p_reqexp TYPE /opl11/lbm_app_header_s-scheduling_expiry_date NO-DISPLAY.
+PARAMETERS: p_reqeve TYPE /opl11/lbm_scheduling_event NO-DISPLAY.
+PARAMETERS: p_reqinf TYPE /opl11/lbm_app_header_s-scheduling_info NO-DISPLAY.
+PARAMETERS: p_reqflg TYPE /opl11/lbm_req NO-DISPLAY.
+* <--- Generated system fields with NO-DISPLAY
+* 自动生成的系统字段（不可显示）结束
+
+SELECTION-SCREEN SKIP 1.
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN PUSHBUTTON 1(80) btn_run USER-COMMAND onli VISIBLE LENGTH 20.
+SELECTION-SCREEN PUSHBUTTON 22(80) btn_prv USER-COMMAND fc01 VISIBLE LENGTH 20.
+SELECTION-SCREEN PUSHBUTTON 43(80) btn_qpr USER-COMMAND fc02 VISIBLE LENGTH 20.
+*SELECTION-SCREEN PUSHBUTTON 64(80) btn_clr USER-COMMAND fc03 VISIBLE LENGTH 20.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN END OF SCREEN 5555.
+
+* Extended options ---------------------------------------------------------------------
+* 扩展选项 ---------------------------------------------------------------------
+SELECTION-SCREEN BEGIN OF SCREEN 5560 AS SUBSCREEN.
+
+PARAMETERS: e_lbmfrm TYPE /opl11/lbm_app_header_s-form NO-DISPLAY. "F4 layout /opl11/lbm_form
+PARAMETERS: e_frmvar TYPE /opl11/lbm_app_header_s-form_variant  NO-DISPLAY. "F4 layout /opl11/lbm_form_variant
+PARAMETERS: e_lbmdst TYPE /opl11/lbm_app_header_s-lbm_dest NO-DISPLAY. "F4 layout /opl11/lbm_dest
+PARAMETERS: e_simula TYPE /opl11/lbm_sim NO-DISPLAY.
+
+SELECTION-SCREEN BEGIN OF BLOCK blk_prt WITH FRAME TITLE blktprt.
+PARAMETERS: e_printd TYPE /opl11/lbm_app_header_s-printer_dest.
+PARAMETERS: e_printn TYPE /opl11/lbm_app_header_s-printer_name.
+PARAMETERS: e_prtray TYPE /opl11/lbm_app_header_s-printer_tray.
+SELECTION-SCREEN END OF BLOCK blk_prt.
+
+SELECTION-SCREEN BEGIN OF BLOCK blk_lay WITH FRAME TITLE blktlay.
+PARAMETERS: e_laygrp TYPE /opl11/lbm_app_header_s-layout_group.
+PARAMETERS: e_layout TYPE /opl11/lbm_app_header_s-layout .
+PARAMETERS: e_revmod TYPE /opl11/lbm_revision_mode VALUE CHECK.
+PARAMETERS: e_rev_id TYPE /opl11/lbm_lay-revision_id.
+PARAMETERS: e_copies TYPE /opl11/lbm_ident_copies.
+PARAMETERS: e_serial TYPE /opl11/lbm_serial_copies.
+SELECTION-SCREEN END OF BLOCK blk_lay.
+
+SELECTION-SCREEN BEGIN OF BLOCK blk_add WITH FRAME TITLE blktadd.
+PARAMETERS: e_langua TYPE /opl11/lbm_app_header_s-label_langu MEMORY ID /opl11/lbm_langu.
+PARAMETERS: e_prefix TYPE /opl11/lbm_app_header_s-prefix_type MEMORY ID /opl11/lbm_prefix.
+PARAMETERS: e_ref_id TYPE /opl11/lbm_app_header_s-reference_id.
+PARAMETERS: e_maxlab TYPE /opl11/lbm_max_no_of_labels.
+PARAMETERS: e_crjobg TYPE /opl11/lbm_create_job_group NO-DISPLAY.
+SELECTION-SCREEN END OF BLOCK blk_add.
+
+SELECTION-SCREEN SKIP 1.
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN PUSHBUTTON 1(80) btn_smp USER-COMMAND fc_smp VISIBLE LENGTH 20.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN END OF SCREEN 5560.
+
+* Extended options ---------------------------------------------------------------------
+* 扩展选项 ---------------------------------------------------------------------
+SELECTION-SCREEN BEGIN OF SCREEN 5565 AS SUBSCREEN.
+
+SELECTION-SCREEN BEGIN OF BLOCK cnt_hea WITH FRAME TITLE cntthea.
+PARAMETERS: e_camcls TYPE /opl11/cai_content_class.
+PARAMETERS: e_camvar TYPE /opl11/cai_content_variant NO-DISPLAY.
+SELECTION-SCREEN END OF BLOCK cnt_hea.
+
+SELECTION-SCREEN BEGIN OF BLOCK cnt_mod WITH FRAME TITLE cnttmod.
+PARAMETERS: e_cammod TYPE /opl11/lbm_cam_mode AS LISTBOX VISIBLE LENGTH 32 USER-COMMAND cammod.
+PARAMETERS: e_camreq TYPE /opl11/cai_change_request.
+PARAMETERS: e_camdat TYPE /opl11/cai_content_valid_date. " DEFAULT sy-datum.(<> 012/013)
+PARAMETERS: e_camtim TYPE /opl11/cai_content_valid_time. " DEFAULT sy-uzeit.(<> 012/013)
+PARAMETERS: e_camver TYPE /opl11/cai_complete_version. "version draft F4 (rev) only if all key fields are present
+PARAMETERS: e_camkey TYPE /opl11/cai_content_key_id NO-DISPLAY.
+PARAMETERS: e_camdsc TYPE /opl11/cai_description.
+PARAMETERS: e_camrsp TYPE /opl11/lbm_app_header_s-content_responsible_user.
+PARAMETERS: e_camstr TYPE /opl11/cai_strategy_id AS LISTBOX VISIBLE LENGTH 40.
+PARAMETERS: e_camwop TYPE /opl11/lbm_cam_wo_print." DEFAULT 'X'.
+SELECTION-SCREEN END OF BLOCK cnt_mod.
+SELECTION-SCREEN END OF SCREEN 5565.
+
+* Scheduling options ---------------------------------------------------------------------
+* 调度选项 ---------------------------------------------------------------------
+SELECTION-SCREEN BEGIN OF SCREEN 5567 AS SUBSCREEN.
+
+SELECTION-SCREEN BEGIN OF BLOCK blk_req WITH FRAME TITLE blktreq.
+PARAMETERS: e_reqdat TYPE /opl11/lbm_app_header_s-scheduling_date.
+PARAMETERS: e_reqtim TYPE /opl11/lbm_app_header_s-scheduling_time.
+PARAMETERS: e_reqexp TYPE /opl11/lbm_app_header_s-scheduling_expiry_date.
+PARAMETERS: e_reqeve TYPE /opl11/lbm_app_header_s-scheduling_event.
+PARAMETERS: e_reqinf TYPE /opl11/lbm_app_header_s-scheduling_info.
+PARAMETERS: e_reqflg TYPE /opl11/lbm_req.
+SELECTION-SCREEN END OF BLOCK blk_req.
+
+*SELECTION-SCREEN SKIP 1.
+*SELECTION-SCREEN BEGIN OF LINE.
+*SELECTION-SCREEN PUSHBUTTON 1(80) btn_req USER-COMMAND fc_req VISIBLE LENGTH 20.
+*SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN END OF SCREEN 5567.
+
+* Status information ---------------------------------------------------------------------
+* 状态信息 ---------------------------------------------------------------------
+SELECTION-SCREEN BEGIN OF SCREEN 5570 AS SUBSCREEN.
+
+SELECTION-SCREEN BEGIN OF BLOCK blk_frm WITH FRAME TITLE blktfrm.
+PARAMETERS: i_lbmfrm TYPE /opl11/lbm_app_header_s-form.
+PARAMETERS: i_frmvar TYPE /opl11/lbm_app_header_s-form_variant.
+PARAMETERS: i_lbmdst TYPE /opl11/lbm_app_header_s-lbm_dest.
+PARAMETERS: i_aedatu TYPE /opl11/lbm_frm-aedat.
+PARAMETERS: i_aezeit TYPE /opl11/lbm_frm-aezeit.
+PARAMETERS: i_aename TYPE /opl11/lbm_frm-aenam.
+SELECTION-SCREEN END OF BLOCK blk_frm.
+
+SELECTION-SCREEN BEGIN OF BLOCK blk_gen WITH FRAME TITLE blktgen.
+PARAMETERS: i_tagdat TYPE /opl11/lbm_frm-aedat DEFAULT '20250828' ##VALUE_OK.
+PARAMETERS: i_tagzei TYPE /opl11/lbm_frm-aezeit DEFAULT '114944' ##VALUE_OK.
+PARAMETERS: i_tagnam TYPE /opl11/lbm_frm-aenam DEFAULT 'KOMAROVA'.
+PARAMETERS: i_icodat TYPE icon_d DEFAULT icon_okay.
+SELECTION-SCREEN END OF BLOCK blk_gen.
+
+SELECTION-SCREEN BEGIN OF BLOCK blk_gst WITH FRAME TITLE blktgst.
+PARAMETERS: i_tagbld TYPE /opl11/lbm_release_info DEFAULT '7.1.0 (20240701)'.
+PARAMETERS: i_curbld TYPE /opl11/lbm_release_info.
+*PARAMETERS: i_minbld TYPE /opl11/lbm_release_info NO-DISPLAY.
+PARAMETERS: i_icobld TYPE icon_d DEFAULT icon_okay.
+SELECTION-SCREEN END OF BLOCK blk_gst.
+
+SELECTION-SCREEN END OF SCREEN 5570.
+
+* Tabbed block control ---------------------------------------------------------------------
+* 标签块控制 ---------------------------------------------------------------------
+SELECTION-SCREEN: BEGIN OF TABBED BLOCK tab_5555 FOR 21  LINES, "no of lines will be replaced ##...##
+                  TAB (70) tab_sel USER-COMMAND tab_sel
+                                   DEFAULT SCREEN 5555,
+                  TAB (70) tab_ext USER-COMMAND tab_ext
+                                   DEFAULT SCREEN 5560,
+                  TAB (70) tab_cam USER-COMMAND tab_cam
+                                   DEFAULT SCREEN 5565,
+                  TAB (70) tab_req USER-COMMAND tab_req
+                                   DEFAULT SCREEN 5567,
+                  TAB (70) tab_inf USER-COMMAND tab_inf
+                                   DEFAULT SCREEN 5570,
+                  END OF BLOCK tab_5555.
+
+* Report functions and events ---------------------------------------------------------------------
+* 报表功能和事件 ---------------------------------------------------------------------
+
+* ---> Generated Include with LBM report functionalities
+* 自动生成的包含LBM报表功能的Include文件
+*#INC
+INCLUDE /OPL11/REP_LBM_INCLUDE_008 .
+* <--- Generated Include with LBM report functionalities
+* 自动生成的包含LBM报表功能的Include文件结束
+
+* Printer search help ---------------------------------------------------------------------
+* 打印机搜索帮助 ---------------------------------------------------------------------
+*-----------------------------------------------------------------------------------------------------------------------------*
+
+* ---> generated F4 support for printer name on selection screen
+* 自动生成的选择屏幕打印机名称F4支持
+*#PRT
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_printn. "printer name 打印机名称
+PERFORM form_f4_printn_prepare USING 'P_PRINTN' gv_p_printn_display.
+* <--- generated F4 support for printer name on selection screen
+* 自动生成的选择屏幕打印机名称F4支持结束
+
+* ---> generated F4 support for value list on selection screen
+* 自动生成的选择屏幕值列表F4支持
+*#VAL
+* <--- generated F4 support for value list on selection screen
+* 自动生成的选择屏幕值列表F4支持结束
